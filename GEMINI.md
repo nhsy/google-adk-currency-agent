@@ -16,6 +16,7 @@ The project implements a specialized assistant for currency conversions. It uses
 - **Agent2Agent (A2A):** Protocol for enabling inter-agent communication and collaboration (`a2a-sdk`).
 - **uv:** Ultra-fast Python package installer and resolver.
 - **Taskfile:** Automation tool for common development workflows.
+- **structlog:** Structured logging for Python.
 - **Gemini:** The underlying LLM (e.g., `gemini-2.5-flash`).
 
 ### Architecture
@@ -54,6 +55,7 @@ To run the full stack, you need to start both servers in separate terminals:
 
 ### Testing
 - **Run all tests:** `task test`
+- **Run tests with coverage:** `task test:cov`
 - **Run MCP tests:** `task test:mcp`
 - **Run Agent tests:** `task test:agent`
 
@@ -104,6 +106,7 @@ Uses `ruff` for Python linting/formatting and `yamllint` for YAML files.
     - `GOOGLE_API_KEY`: For direct Gemini API access.
     - `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`: For Vertex AI access.
     - `MCP_SERVER_URL`: URL where the agent can find the MCP server.
+    - `LOG_JSON`: Set to `TRUE` to enable JSON structured logging (default is human-readable console output).
 
 ### Contribution Workflow
 1.  Ensure all tests pass before submitting changes (`task test`).
