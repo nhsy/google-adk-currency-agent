@@ -27,6 +27,7 @@ tasks:
     deps:
       - task: up:mcp
       - task: up:agent
+      - task: up:web
 
   up:mcp:
     desc: Start the MCP Server
@@ -43,6 +44,7 @@ tasks:
         --host localhost --port {{.AGENT_PORT}}
     env:
       MCP_SERVER_URL: "http://localhost:{{.MCP_PORT}}/mcp"
+      PYTHONWARNINGS: "ignore:.*EXPERIMENTAL"
 
   up:web:
     aliases: [web]
@@ -52,8 +54,7 @@ tasks:
     env:
       MCP_SERVER_URL: "http://localhost:{{.MCP_PORT}}/mcp"
       PORT: "{{.WEB_PORT}}"
-      PYTHONWARNINGS: "ignore:.*[EXPERIMENTAL].*"
-
+      PYTHONWARNINGS: "ignore:.*EXPERIMENTAL"
 
   down:
     desc: Stop the servers

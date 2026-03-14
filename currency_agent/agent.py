@@ -75,3 +75,13 @@ root_agent = LlmAgent(
 
 # Make the agent A2A-compatible
 a2a_app = to_a2a(root_agent, port=10000)
+
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.getenv("AGENT_PORT", 10000))
+    logger.info("agent_server_started", port=port)
+    try:
+        uvicorn.run(a2a_app, host="localhost", port=port)
+    except KeyboardInterrupt:
+        logger.info("agent_server_stopped", reason="user_interrupted")

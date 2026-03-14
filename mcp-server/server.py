@@ -282,10 +282,13 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     logger.info("server_started", port=port)
     # Could also use 'sse' transport, host="0.0.0.0" required for Cloud Run.
-    asyncio.run(
-        mcp.run_async(
-            transport="http",
-            host="0.0.0.0",
-            port=port,
+    try:
+        asyncio.run(
+            mcp.run_async(
+                transport="http",
+                host="0.0.0.0",
+                port=port,
+            )
         )
-    )
+    except KeyboardInterrupt:
+        logger.info("server_stopped", reason="user_interrupted")
