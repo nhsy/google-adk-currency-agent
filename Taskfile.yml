@@ -78,6 +78,14 @@ tasks:
       - task: test:mcp
       - task: test:agent
 
+  test:cov:
+    desc: Run tests with coverage
+    cmds:
+      - >
+        PYTHONPATH=.:mcp-server {{.PYTHON}} pytest --cov=currency_agent --cov=server
+        --cov-report=term-missing --cov-config=.coveragerc
+        mcp-server/tests/test_mcp_logic.py currency_agent/test_agent_logic.py
+
   lint:
     desc: Run linting and formatting
     cmds:

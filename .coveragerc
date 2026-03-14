@@ -1,0 +1,5 @@
+[run]
+omit =
+    *test_*.py
+    mcp-server/test_server.py
+    currency_agent/test_client.py

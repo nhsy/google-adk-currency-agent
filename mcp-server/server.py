@@ -1,13 +1,33 @@
 import asyncio
-import logging
 import os
 import time
+import structlog
+import logging
 
 import httpx
 from fastmcp import FastMCP
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(format="[%(levelname)s]: %(message)s", level=logging.INFO)
+...
+# Configure structlog
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.StackInfoRenderer(),
+        structlog.dev.set_exc_info,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.dev.ConsoleRenderer()
+        if not os.getenv("LOG_JSON")
+        else structlog.processors.JSONRenderer(),
+    ],
+    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(),
+    cache_logger_on_first_use=True,
+)
+
+
+logger = structlog.get_logger(__name__)
 
 mcp = FastMCP("Currency MCP Server 💵")
 
@@ -26,7 +46,7 @@ async def _rate_limited_request(url: str, params: dict | None = None) -> httpx.R
         elapsed = now - last_request_time
         if elapsed < RATE_LIMIT_INTERVAL:
             wait_time = RATE_LIMIT_INTERVAL - elapsed
-            logger.info(f"⏳ Rate limiting: waiting {wait_time:.2f}s...")
+            logger.info("rate_limiting", wait_time=f"{wait_time:.2f}s")
             await asyncio.sleep(wait_time)
 
         async with httpx.AsyncClient() as client:
@@ -52,7 +72,11 @@ async def get_exchange_rate(
         A dictionary containing the exchange rate data, or an error message if the request fails.
     """
     logger.info(
-        f"--- 🛠️ Tool: get_exchange_rate called for converting {currency_from} to {currency_to} on {currency_date} ---"
+        "tool_call",
+        tool="get_exchange_rate",
+        currency_from=currency_from,
+        currency_to=currency_to,
+        currency_date=currency_date,
     )
     try:
         url = f"https://api.frankfurter.app/{currency_date}"
@@ -65,15 +89,15 @@ async def get_exchange_rate(
 
         data = response.json()
         if "rates" not in data:
-            logger.error(f"❌ rates not found in response: {data}")
+            logger.error("invalid_api_response", data=data)
             return {"error": "Invalid API response format."}
-        logger.info(f"✅ API response: {data}")
+        logger.info("api_response", data=data)
         return data
     except httpx.HTTPError as e:
-        logger.error(f"❌ API request failed: {e}")
+        logger.error("api_request_failed", error=str(e))
         return {"error": f"API request failed: {e}"}
     except ValueError:
-        logger.error("❌ Invalid JSON response from API")
+        logger.error("invalid_json_response")
         return {"error": "Invalid JSON response from API."}
 
 
@@ -93,7 +117,12 @@ async def convert_currency(
         currency_date: The date for the exchange rate in YYYY-MM-DD format or "latest". Defaults to "latest".
     """
     logger.info(
-        f"--- 🛠️ Tool: convert_currency called: {amount} {currency_from} -> {currency_to} ({currency_date}) ---"
+        "tool_call",
+        tool="convert_currency",
+        amount=amount,
+        currency_from=currency_from,
+        currency_to=currency_to,
+        currency_date=currency_date,
     )
     try:
         url = f"https://api.frankfurter.app/{currency_date}"
@@ -101,9 +130,10 @@ async def convert_currency(
         response = await _rate_limited_request(url, params=params)
         response.raise_for_status()
         data = response.json()
-        logger.info(f"✅ API response: {data}")
+        logger.info("api_response", data=data)
         return data
     except httpx.HTTPError as e:
+        logger.error("api_request_failed", error=str(e))
         return {"error": f"API request failed: {e}"}
 
 
@@ -128,7 +158,12 @@ async def get_time_series(
         end_date = datetime.now().strftime("%Y-%m-%d")
 
     logger.info(
-        f"--- 🛠️ Tool: get_time_series called: {currency_from} to {currency_to} from {start_date} to {end_date} ---"
+        "tool_call",
+        tool="get_time_series",
+        currency_from=currency_from,
+        currency_to=currency_to,
+        start_date=start_date,
+        end_date=end_date,
     )
     try:
         url = f"https://api.frankfurter.app/{start_date}..{end_date}"
@@ -136,9 +171,10 @@ async def get_time_series(
         response = await _rate_limited_request(url, params=params)
         response.raise_for_status()
         data = response.json()
-        logger.info(f"✅ API response (truncated): {str(data)[:200]}...")
+        logger.info("api_response", data_summary=str(data)[:200] + "...")
         return data
     except httpx.HTTPError as e:
+        logger.error("api_request_failed", error=str(e))
         return {"error": f"API request failed: {e}"}
 
 
@@ -158,7 +194,12 @@ async def get_rate_trend(
         comparison_date: The more recent date for comparison (or 'latest').
     """
     logger.info(
-        f"--- 🛠️ Tool: get_rate_trend called: {currency_from}/{currency_to} from {base_date} to {comparison_date} ---"
+        "tool_call",
+        tool="get_rate_trend",
+        currency_from=currency_from,
+        currency_to=currency_to,
+        base_date=base_date,
+        comparison_date=comparison_date,
     )
     try:
         # Get rates for both dates
@@ -166,6 +207,7 @@ async def get_rate_trend(
         rate_new = await get_exchange_rate(currency_from, currency_to, comparison_date)
 
         if "error" in rate_old or "error" in rate_new:
+            logger.error("trend_calculation_failed", reason="could_not_fetch_rates")
             return {"error": "Could not fetch rates for both dates."}
 
         val_old = rate_old["rates"][currency_to]
@@ -184,13 +226,14 @@ async def get_rate_trend(
             "trend": trend,
         }
     except Exception as e:
+        logger.error("trend_calculation_failed", error=str(e))
         return {"error": f"Failed to calculate trend: {e}"}
 
 
 @mcp.resource("currencies://list")
 async def list_currencies_resource() -> str:
     """Provides a map of all supported currency codes and their full names."""
-    logger.info("--- 📂 Resource: currencies://list accessed ---")
+    logger.info("resource_access", resource="currencies://list")
     data = await list_currencies()
     import json
 
@@ -204,19 +247,19 @@ async def list_currencies():
     Returns:
         A dictionary containing the list of available currencies.
     """
-    logger.info("--- 🛠️ Tool: list_currencies called ---")
+    logger.info("tool_call", tool="list_currencies")
     try:
         url = "https://api.frankfurter.app/currencies"
         response = await _rate_limited_request(url)
         response.raise_for_status()
         data = response.json()
-        logger.info(f"✅ API response: {data}")
+        logger.info("api_response", data=data)
         return data
     except httpx.HTTPError as e:
-        logger.error(f"❌ API request failed: {e}")
+        logger.error("api_request_failed", error=str(e))
         return {"error": f"API request failed: {e}"}
     except ValueError:
-        logger.error("❌ Invalid JSON response from API")
+        logger.error("invalid_json_response")
         return {"error": "Invalid JSON response from API."}
 
 
@@ -231,13 +274,13 @@ def get_current_date():
     from datetime import datetime
 
     now = datetime.now().strftime("%Y-%m-%d")
-    logger.info(f"--- 🛠️ Tool: get_current_date called, returning {now} ---")
+    logger.info("tool_call", tool="get_current_date", current_date=now)
     return {"current_date": now}
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
-    logger.info(f"🚀 MCP server started on port {port}")
+    logger.info("server_started", port=port)
     # Could also use 'sse' transport, host="0.0.0.0" required for Cloud Run.
     asyncio.run(
         mcp.run_async(

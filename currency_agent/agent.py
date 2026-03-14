@@ -1,6 +1,7 @@
-import logging
 import os
 import warnings
+import structlog
+import logging
 
 from dotenv import load_dotenv
 from google.adk.agents import LlmAgent
@@ -10,8 +11,25 @@ from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 # Suppress warnings about experimental features
 warnings.filterwarnings("ignore", message=r".*\[EXPERIMENTAL\].*")
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(format="[%(levelname)s]: %(message)s", level=logging.INFO)
+# Configure structlog
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.StackInfoRenderer(),
+        structlog.dev.set_exc_info,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.dev.ConsoleRenderer()
+        if not os.getenv("LOG_JSON")
+        else structlog.processors.JSONRenderer(),
+    ],
+    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    context_class=dict,
+    logger_factory=structlog.PrintLoggerFactory(),
+    cache_logger_on_first_use=True,
+)
+
+logger = structlog.get_logger(__name__)
 
 load_dotenv()
 
