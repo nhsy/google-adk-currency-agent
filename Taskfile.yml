@@ -1,0 +1,93 @@
+version: '3'
+
+vars:
+  PYTHON: uv run
+  MCP_SERVER: mcp-server/server.py
+  AGENT_SERVER: currency_agent.agent:a2a_app
+  MCP_PORT: 8080
+  AGENT_PORT: 10000
+  WEB_PORT: 8000
+
+tasks:
+  init:
+    desc: Initialize the project (install deps and hooks)
+    cmds:
+      - uv sync
+      - pre-commit install
+    status:
+      - test -d .venv
+
+  deps:
+    desc: Check for required dependencies
+    cmds:
+      - uv --version
+      - python --version
+
+  up:
+    deps:
+      - task: up:mcp
+      - task: up:agent
+
+  up:mcp:
+    desc: Start the MCP Server
+    cmds:
+      - "{{.PYTHON}} python {{.MCP_SERVER}}"
+    env:
+      PORT: "{{.MCP_PORT}}"
+
+  up:agent:
+    desc: Start the A2A Agent Server
+    cmds:
+      - >
+        {{.PYTHON}} uvicorn {{.AGENT_SERVER}}
+        --host localhost --port {{.AGENT_PORT}}
+    env:
+      MCP_SERVER_URL: "http://localhost:{{.MCP_PORT}}/mcp"
+
+  up:web:
+    aliases: [web]
+    desc: Start the ADK Workbench (web UI)
+    cmds:
+      - adk web
+    env:
+      MCP_SERVER_URL: "http://localhost:{{.MCP_PORT}}/mcp"
+      PORT: "{{.WEB_PORT}}"
+      PYTHONWARNINGS: "ignore:.*[EXPERIMENTAL].*"
+
+
+  down:
+    desc: Stop the servers
+    cmds:
+      - lsof -i :{{.AGENT_PORT}} -t | xargs kill -9 || true
+      - lsof -i :{{.MCP_PORT}} -t | xargs kill -9 || true
+      - lsof -i :{{.WEB_PORT}} -t | xargs kill -9 || true
+
+  test:mcp:
+    desc: Run MCP Server tests
+    cmds:
+      - "{{.PYTHON}} python mcp-server/test_server.py"
+
+  test:agent:
+    desc: Run A2A Client tests
+    cmds:
+      - "{{.PYTHON}} python currency_agent/test_client.py"
+
+  test:
+    desc: Run all tests
+    cmds:
+      - task: test:mcp
+      - task: test:agent
+
+  lint:
+    desc: Run linting and formatting
+    cmds:
+      - "{{.PYTHON}} ruff check ."
+      - "{{.PYTHON}} ruff format ."
+      - "{{.PYTHON}} yamllint ."
+
+  clean:
+    desc: Clean up temporary files and artifacts
+    cmds:
+      - rm -rf .venv
+      - find . -type d -name "__pycache__" -exec rm -rf {} +
+      - find . -type f -name "*.pyc" -delete

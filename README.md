@@ -24,7 +24,19 @@ countries' currencies.
 
 > MCP is an open protocol that standardizes how applications provide context to LLMs. Think of MCP like a USB-C port for AI applications. Just as USB-C provides a standardized way to connect your devices to various peripherals and accessories, MCP provides a standardized way to connect AI models to different data sources and tools. - [Anthropic](https://modelcontextprotocol.io/introduction)
 
-The MCP server in this example exposes a tool `get_exchange_rate` that can be used to get the exchange rate between two currencies such as USD and EUR. It leverages the [Frankfurter](https://www.frankfurter.dev/) API to get the currency exchange rate. Our agent uses an MCP client to invoke this tool when needed.
+The MCP server in this example exposes several tools for currency data:
+- `get_exchange_rate`: Get the exchange rate between currencies (e.g., USD to EUR).
+- `convert_currency`: Directly convert a specific amount between currencies.
+- `get_time_series`: Fetch historical exchange rates over a date range.
+- `get_rate_trend`: Calculate the percentage change and trend between two dates.
+- `list_currencies`: List all available currency codes and names.
+- `get_current_date`: Get the current date for relative calculations.
+
+It also provides a resource:
+- `currencies://list`: A JSON map of all supported currency codes and their full names.
+
+It leverages the [Frankfurter](https://www.frankfurter.dev/) API to get the currency exchange rate. Our agent uses an MCP client to invoke these tools when needed.
+
 
 ### <img height="20" width="20" src="images/adk-favicon.ico" alt="ADK Logo" /> Agent Development Kit (ADK)
 
@@ -36,7 +48,7 @@ ADK (v1.0.0) is used as the orchestration framework for creating our currency ag
 
 > Agent2Agent (A2A) protocol addresses a critical challenge in the AI landscape: enabling gen AI agents, built on diverse frameworks by different companies running on separate servers, to communicate and collaborate effectively - as agents, not just as tools. A2A aims to provide a common language for agents, fostering a more interconnected, powerful, and innovative AI ecosystem. - [A2A](https://github.com/a2aproject/A2A)
 
-The new [A2A Python SDK](https://github.com/google-a2a/a2a-python) is used to create an A2A server that advertises and executes our ADK agent. We then run an A2A client that connects to our A2A server and invokes our ADK agent. 
+The new [A2A Python SDK](https://github.com/google-a2a/a2a-python) is used to create an A2A server that advertises and executes our ADK agent. We then run an A2A client that connects to our A2A server and invokes our ADK agent.
 
 ## Getting Started
 
@@ -54,33 +66,36 @@ git clone https://github.com/jackwotherspoon/currency-agent.git
 cd currency-agent
 ```
 
-2. Install [uv](https://docs.astral.sh/uv/getting-started/installation) (used to manage dependencies):
+2. Install [uv](https://docs.astral.sh/uv/getting-started/installation) and [Task](https://taskfile.dev/):
 
 ```bash
-# macOS and Linux
+# Install uv (macOS/Linux)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Windows (uncomment below line)
-# powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Install Task (macOS/Linux)
+sh -c "$(curl --location https://task.get.taskfile.dev/install.sh)" -- -d
 ```
 
-> [!NOTE]
-> You may need to restart or open a new terminal after installing `uv`.
+3. Initialize the project:
 
-3. Configure environment variables (via `.env` file):
+```bash
+task init
+```
+
+4. Configure environment variables (via `.env` file):
 
 There are two different ways to call Gemini models:
 
 - Calling the Gemini API directly using an API key created via Google AI Studio.
 - Calling Gemini models through Vertex AI APIs on Google Cloud.
 
-> [!TIP] 
+> [!TIP]
 > An API key from Google AI Studio is the quickest way to get started.
-> 
+>
 > Existing Google Cloud users may want to use Vertex AI.
 
 <details open>
-<summary>Gemini API Key</summary> 
+<summary>Gemini API Key</summary>
 
 Get an API Key from Google AI Studio: https://aistudio.google.com/apikey
 
@@ -118,6 +133,20 @@ echo "GOOGLE_GENAI_USE_VERTEXAI=TRUE" >> .env \
 
 Now you are ready for the fun to begin!
 
+## ⚡ Automation with Taskfile
+
+This project uses [Task](https://taskfile.dev/) for automation. You can use the following commands:
+
+- `task init`: Initialize the project (install dependencies and pre-commit hooks).
+- `task deps`: Check for required dependencies (uv, python).
+- `task lint`: Run linting and formatting checks (ruff).
+- `task up:mcp`: Start the MCP Server.
+- `task up:agent`: Start the A2A Agent Server.
+- `task up:web`: Start the ADK Workbench (web UI).
+- `task down`: Stop the servers.
+- `task test`: Run all tests.
+- `task clean`: Clean up temporary files and artifacts.
+
 ## Local Deployment
 
 ### MCP Server
@@ -125,7 +154,7 @@ Now you are ready for the fun to begin!
 In a terminal, start the MCP Server (it starts on port 8080):
 
 ```bash
-uv run mcp-server/server.py
+task up:mcp
 ```
 
 ### A2A Server
@@ -133,7 +162,7 @@ uv run mcp-server/server.py
 In a separate terminal, start the A2A Server (it starts on port 10000):
 
 ```bash
-uv run uvicorn currency_agent.agent:a2a_app --host localhost --port 10000
+task up:agent
 ```
 
 ### A2A Client
@@ -141,7 +170,15 @@ uv run uvicorn currency_agent.agent:a2a_app --host localhost --port 10000
 In a separate terminal, run the A2A Client to run some queries against our A2A server:
 
 ```bash
-uv run currency_agent/test_client.py
+task test:agent
+```
+
+### Cleanup
+
+To stop the servers and free up the ports:
+
+```bash
+task down
 ```
 
 ## 🤝 Contributing
