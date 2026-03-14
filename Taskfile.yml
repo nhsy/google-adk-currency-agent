@@ -46,6 +46,11 @@ tasks:
       MCP_SERVER_URL: "http://localhost:{{.MCP_PORT}}/mcp"
       PYTHONWARNINGS: "ignore:.*EXPERIMENTAL"
 
+  agent:card:
+    desc: Fetch and pretty-print the A2A Agent Card
+    cmds:
+      - curl -s http://localhost:{{.AGENT_PORT}}/.well-known/agent-card.json | python -m json.tool
+
   up:web:
     aliases: [web]
     desc: Start the ADK Workbench (web UI)
